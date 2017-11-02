@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
@@ -22,14 +23,27 @@ namespace AzureStorageExample
 
             await AddEntities();
 
+            TableQuery<SampleEntity> query = new TableQuery<SampleEntity>().Where(TableQuery.CombineFilters(
+                TableQuery.GenerateFilterCondition(nameof(SampleEntity.PartitionKey), QueryComparisons.Equal, "Sample"),
+                TableOperators.And,
+                TableQuery.GenerateFilterConditionForDate(nameof(SampleEntity.NextDate),
+                    QueryComparisons.GreaterThanOrEqual, DateTime.Now)));
 
-        
+            List<SampleEntity> items = (await _table.ExecuteQueryAsync(query)).ToList();
+
+            foreach (var sampleEntity in items)
+            {
+                Console.WriteLine(sampleEntity);
+            }
 
 
-            Console.WriteLine($"There are {_table.ExecuteQuerySegmentedAsync(new TableQuery<SampleEntity>(), new TableContinuationToken()).Result.Count()} entities in {_table.Name}");
-            Console.WriteLine("Hello World!");
+
+
+            //Console.WriteLine($"There are {_table.ExecuteQuerySegmentedAsync(new TableQuery<SampleEntity>(), new TableContinuationToken()).Result.Count()} entities in {_table.Name}");
             Console.Read();
         }
+
+
 
         private static async Task Init()
         {
@@ -113,6 +127,38 @@ namespace AzureStorageExample
             {
                 this.Names = this.NamesList.Split(';').ToList();
             }
+        }
+
+        public override string ToString()
+        {
+            return
+                "=====================================\n" +
+                $"{nameof(PartitionKey)} : {PartitionKey}\n" +
+                   $"{nameof(RowKey)} : {RowKey}\n" +
+                   $"{nameof(NamesList)} : {string.Join(" ", Names)}\n" +
+                   $"{nameof(NextDate)} : {NextDate:d}\n" +
+                "=====================================\n";
+        }
+    }
+
+    static class TableExtensions
+    {
+        public static async Task<IEnumerable<T>> ExecuteQueryAsync<T>(this CloudTable table, TableQuery<T> query, CancellationToken ct = default) where T : ITableEntity, new()
+
+        {
+            var items = new List<T>();
+            TableContinuationToken token = default;
+
+            do
+            {
+                TableQuerySegment<T> segment = await table.ExecuteQuerySegmentedAsync(query, token);
+                token = segment.ContinuationToken;
+                items.AddRange(segment);
+
+            } while (token != null);
+
+
+            return items;
         }
     }
 }
