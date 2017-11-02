@@ -60,6 +60,7 @@ namespace AzureStorageExample
 
             _table = _client.GetTableReference(TableName);
 
+            await _table.DeleteIfExistsAsync();
             await _table.CreateIfNotExistsAsync();
         }
 
